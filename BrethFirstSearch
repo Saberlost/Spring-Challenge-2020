@@ -11,7 +11,9 @@ class Cell {
         private wall : Boolean,
         private x : number, 
         private y : number,
-        private discovered : Boolean = false) {}
+        private discovered : Boolean = false,
+        private otherPacman : Boolean = false
+        ) {}
         
 
  
@@ -43,9 +45,30 @@ class Cell {
     setDiscovered(discovered: Boolean){
         this.discovered = discovered
     }
+
+    isOtherPacman() :Boolean{
+        return this.otherPacman
+    }
+    
+    setOtherPacman(pacman : Boolean){
+        this.otherPacman = pacman
+    }
     
 }
 
+
+class Pacman{
+     constructor (
+        private id:number,
+        private cell: Cell) {}
+
+    getId() : number{
+        return this.id
+    }
+    getCell():Cell{
+        return this.cell
+    }
+}
 
 
 
@@ -139,7 +162,7 @@ function getRigthCell(x: number, y: number, board : Array<Cell>) : Cell{
 }
 
 function checkAndEnqueu(cell : Cell, prevCell:Cell, nextCells:Array<Cell>) : Boolean{
-    if (cell != null && cell.isDiscovered() == false &&  !cell.isWall()){
+    if (cell != null && cell.isDiscovered() == false &&  !cell.isWall() && !cell.isOtherPacman()){
         cell.setDiscovered(true);
         nextCells.push(cell)
         return true;
@@ -167,11 +190,15 @@ function findPath(x : number, y : number ,  board : Array<Cell>) :Cell{
         let down :Cell = getDownCell(v.getX(), v.getY(), board)
         let left :Cell = getLeftCell(v.getX(), v.getY(), board)
         let rigth :Cell = getRigthCell(v.getX(), v.getY(), board)
-        
+        if(rigth != null && rigth.getX() == 7 && rigth.getY() == 7){
+            console.error("7,7 is what: " +rigth.isOtherPacman())
+        }
+
         checkAndEnqueu(left, v, nextCells);
         checkAndEnqueu(up,  v, nextCells);
         checkAndEnqueu(down, v, nextCells);
         checkAndEnqueu(rigth, v, nextCells);
+        
        
         depth++
     }
@@ -199,15 +226,15 @@ function findPath(x : number, y : number ,  board : Array<Cell>) :Cell{
 
 
 
-var curx = -1
-var cury = -1
 
 // game loop
 while (true) {
 
+    let myPacmans : Array<Pacman> = new Array<Pacman>()
     board.forEach(function(c :Cell) {
          c.setDiscovered(false)
          c.setPebbleScore(0)
+         c.setOtherPacman(false)
     })
     var inputs: string[] = readline().split(' ');
     const myScore: number = parseInt(inputs[0]);
@@ -223,9 +250,10 @@ while (true) {
         const speedTurnsLeft: number = parseInt(inputs[5]); // unused in wood leagues
         const abilityCooldown: number = parseInt(inputs[6]); // unused in wood leagues
         let cell:Cell = board[toBoardNumber(xpos,ypos)];
+        cell.setOtherPacman(true)
         if (mine == true){
-            curx = xpos;
-            cury = ypos;
+            myPacmans.push(new Pacman(pacId, cell))
+            
         }
     }
     const visiblePelletCount: number = parseInt(readline()); // all pellets in sight
@@ -250,11 +278,22 @@ while (true) {
     // Write an action using console.log()
     // To debug: console.error('Debug messages...');
 
-    console.error("My pac is curx "+ curx +" and cur y::" +cury)
+    
+    var output : String = ""
+    for (let pacman of  myPacmans){
+        var startCell : Cell = pacman.getCell()
+        var cell : Cell = findPath(startCell.getX(), startCell.getY(), board)
+        if(cell != null){
+            if (output.length > 0 ){
+                output = output.concat("|")
+            }
+            output = output.concat("MOVE " + pacman.getId() +" " +cell.getX() + ' ' + cell.getY())
+        }
+    }
 
-    var cell : Cell = findPath(curx, cury, board)
-    if (cell != null){
-          console.log('MOVE 0 '+cell.getX() + ' ' + cell.getY() );     // MOVE <pacId> <x> <y>
+    
+    if (output != null){
+          console.log(output);     // MOVE <pacId> <x> <y>
     } else{
         //got null bug!!
         console.error("FOUND NO PATH BAD!")
