@@ -1,0 +1,264 @@
+/**
+ * Grab the pellets as fast as you can!
+ **/
+
+
+
+
+class Cell {
+    constructor (
+        private pebble :number,
+        private wall : Boolean,
+        private x : number, 
+        private y : number,
+        private discovered : Boolean = false) {}
+        
+
+ 
+    isWall()  : Boolean  {
+        return this.wall;
+    }
+    
+    getPebbleScore() : number {
+        return this.pebble
+    }
+    setPebbleScore(pebbleScore:number){
+        this.pebble = pebbleScore
+    }
+
+    getX() :number{
+        return this.x;
+    }
+    
+    getY() : number {
+        return this.y;
+    }
+
+
+    //Used when searching?
+    isDiscovered() : Boolean {
+        return this.discovered;
+    }
+    
+    setDiscovered(discovered: Boolean){
+        this.discovered = discovered
+    }
+    
+}
+
+
+
+
+
+let board : Array<Cell> = new Array<Cell>()
+
+var inputs: string[] = readline().split(' ');
+const width: number = parseInt(inputs[0]); // size of the grid
+const height: number = parseInt(inputs[1]); // top left corner is (x=0, y=0)
+for (let i = 0; i < height; i++) {
+    const row: string = readline(); // one line of the grid: space " " is floor, pound "#" is wall
+    console.error("row : " +row)
+
+    for (let j = 0; j < width; j++){
+        if(row.charAt(j) == '#'){
+            board.push(new Cell(0, true,  j, i));
+        } else  {
+             board.push(new Cell(0, false,  j ,i ));
+        }
+    }
+}
+
+
+
+function toBoardNumber(x :number, y:number ) : number{
+    //console.error("x"+x +" y " +y +" gives :" + (y*width +x ))
+    return y*width +x ;
+}
+
+
+
+function getRandomInt(max: number) :number {
+  return Math.floor(Math.random() * Math.floor(max));
+}
+
+
+function up (y : number ) : number {
+    return y-1;
+}
+
+
+function down (y : number ) : number {
+    return y+1;
+}
+
+function left (x : number ) : number {
+    return x-1;
+}
+
+
+function right (x : number ) : number {
+    return x+1;
+}
+
+
+
+function getUpCell(x: number, y: number, board : Array<Cell>) : Cell{
+    let newy = up(y)
+    if (newy < 0){
+        return null;
+    }
+    return board[toBoardNumber(x,newy)] 
+}
+
+
+function getDownCell(x: number, y: number, board : Array<Cell>) : Cell{
+    let newy = y +1;
+    if (newy > height){
+        return null;
+    }
+    
+    return board[toBoardNumber(x,newy)] 
+   
+}
+
+function getLeftCell(x: number, y: number, board : Array<Cell>) : Cell{
+    let newX =  x -1;
+    if (newX < 0){
+        return null;
+    }
+    return board[toBoardNumber(newX,y)] 
+}
+
+function getRigthCell(x: number, y: number, board : Array<Cell>) : Cell{
+    let newX =  x + 1;
+    if (newX > width){
+        return null;
+    }
+   return board[toBoardNumber(newX,y)] 
+   
+}
+
+function checkAndEnqueu(cell : Cell, prevCell:Cell, nextCells:Array<Cell>) : Boolean{
+    if (cell != null && cell.isDiscovered() == false &&  !cell.isWall()){
+        cell.setDiscovered(true);
+        nextCells.push(cell)
+        return true;
+    }
+    return false;
+}
+
+
+
+//Breth first search for the cloest pebble
+function findPath(x : number, y : number ,  board : Array<Cell>) :Cell{
+    let nextCells : Array<Cell> = new Array<Cell>();
+    let allVisitedCelsls :Array<Cell> = new Array<Cell>();
+    let c: Cell = board[toBoardNumber(x,y)]    
+    c.setDiscovered(true);
+    nextCells.push(c);
+    let depth : number = 0;
+    while (nextCells.length > 0){
+        let v : Cell = nextCells.shift()// pop == depth first? shift = breth first?
+        if(v.getPebbleScore() > 0){ //WE are only finding the clost now
+            return v;
+        }
+        allVisitedCelsls.push(v)
+        let up :Cell = getUpCell(v.getX(), v.getY(), board)
+        let down :Cell = getDownCell(v.getX(), v.getY(), board)
+        let left :Cell = getLeftCell(v.getX(), v.getY(), board)
+        let rigth :Cell = getRigthCell(v.getX(), v.getY(), board)
+        
+        checkAndEnqueu(left, v, nextCells);
+        checkAndEnqueu(up,  v, nextCells);
+        checkAndEnqueu(down, v, nextCells);
+        checkAndEnqueu(rigth, v, nextCells);
+       
+        depth++
+    }
+    console.error("Searched to depth : " + depth)
+    
+    console.error("allVisitedCelsls lenght : " + allVisitedCelsls.length)
+    if (depth == 1){
+        return null
+    }
+    
+    return null
+/*
+    let finalCell: Cell = allVisitedCelsls.pop();
+    
+   
+ 
+    return finalCell;
+    */
+}
+
+
+
+
+
+
+
+
+var curx = -1
+var cury = -1
+
+// game loop
+while (true) {
+
+    board.forEach(function(c :Cell) {
+         c.setDiscovered(false)
+         c.setPebbleScore(0)
+    })
+    var inputs: string[] = readline().split(' ');
+    const myScore: number = parseInt(inputs[0]);
+    const opponentScore: number = parseInt(inputs[1]);
+    const visiblePacCount: number = parseInt(readline()); // all your pacs and enemy pacs in sight
+    for (let i = 0; i < visiblePacCount; i++) {
+        var inputs: string[] = readline().split(' ');
+        const pacId: number = parseInt(inputs[0]); // pac number (unique within a team)
+        const mine: boolean = inputs[1] !== '0'; // true if this pac is yours
+        var xpos : number  = parseInt(inputs[2]); // position in the grid
+        var ypos : number  = parseInt(inputs[3]); // position in the grid
+        const typeId: string = inputs[4]; // unused in wood leagues
+        const speedTurnsLeft: number = parseInt(inputs[5]); // unused in wood leagues
+        const abilityCooldown: number = parseInt(inputs[6]); // unused in wood leagues
+        let cell:Cell = board[toBoardNumber(xpos,ypos)];
+        if (mine == true){
+            curx = xpos;
+            cury = ypos;
+        }
+    }
+    const visiblePelletCount: number = parseInt(readline()); // all pellets in sight
+    for (let i = 0; i < visiblePelletCount; i++) {
+        var inputs: string[] = readline().split(' ');
+        const x: number = parseInt(inputs[0]);
+        const y: number = parseInt(inputs[1]);
+        const value: number = parseInt(inputs[2]); // amount of points this pellet is worth
+        let cell:Cell = board[toBoardNumber(x,y)];
+        if(cell.getX() != x || cell.getY() != y){
+            console.error("x " + x + "y" + y)
+            console.error(" found x " + cell.getX() + "y" + cell.getY())
+        }
+        
+        cell.setPebbleScore(value)
+        if(x == 15 && y == 3){
+            console.error("pebble score " +cell.getPebbleScore())
+            console.error("pebble score red "+ value)
+        }
+
+    }
+    // Write an action using console.log()
+    // To debug: console.error('Debug messages...');
+
+    console.error("My pac is curx "+ curx +" and cur y::" +cury)
+
+    var cell : Cell = findPath(curx, cury, board)
+    if (cell != null){
+          console.log('MOVE 0 '+cell.getX() + ' ' + cell.getY() );     // MOVE <pacId> <x> <y>
+    } else{
+        //got null bug!!
+        console.error("FOUND NO PATH BAD!")
+         console.log('MOVE 0 5 5')
+    }  
+
+}
