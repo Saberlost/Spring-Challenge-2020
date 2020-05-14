@@ -13,6 +13,7 @@ class Cell {
         private y : number,
         private discovered : Boolean = false,
         private otherPacman : Boolean = false
+       
         ) {}
         
 
@@ -53,6 +54,8 @@ class Cell {
     setOtherPacman(pacman : Boolean){
         this.otherPacman = pacman
     }
+
+ 
     
 }
 
@@ -60,7 +63,14 @@ class Cell {
 class Pacman{
      constructor (
         private id:number,
-        private cell: Cell) {}
+        private cell: Cell,
+        private oldCell : Cell = null,
+        private exploreX : number = -1,
+        private exploreY : number = -1,
+        private failedMove : number = 0,
+        private speedCooldown : number = 0,
+        private speedTurnsLeft : number = 0
+        ) {}
 
     getId() : number{
         return this.id
@@ -68,6 +78,69 @@ class Pacman{
     getCell():Cell{
         return this.cell
     }
+
+
+
+    setCell(cell :Cell ){
+        this.oldCell = this.cell
+        this.cell = cell;
+        if(this.oldCell == cell){
+            console.error("did not move")
+            //did not move
+            this.failedMove += 1
+        } else{
+            console.error("I moved move")
+            this.failedMove = 0
+        }
+    }
+
+    setSpeedColdown(cooldown : number){
+        this.speedCooldown = cooldown
+
+    }
+
+    isSpeedOnColdown() :Boolean {
+        return this.speedCooldown> 0
+    }
+
+    getSpeedTurnsLeft() :number{
+        return this.speedTurnsLeft
+    }
+    
+    setSpeedTurnsLeft(left : number){
+        this.speedTurnsLeft = left
+    }
+
+    needNewStrategy() :Boolean{
+        if(this.failedMove > 3){
+            return true
+        }
+        return false
+    }
+
+    getExploreX() : number{
+        return this.exploreX;
+    }
+    setExploreX(x : number){
+        return this.exploreX = x;
+    }
+
+    getExploreY() : number{
+        return this.exploreY;
+    }
+    
+    setExploreY(y : number){
+        return this.exploreY = y;
+    }
+
+    standOnExplore() :boolean{
+        return 
+            (this.cell.getX() == this.exploreX &&
+            this.cell.getY() == this.exploreY ) ||
+            this.exploreX == -1
+    }
+
+
 }
 
 
@@ -173,32 +246,58 @@ function checkAndEnqueu(cell : Cell, prevCell:Cell, nextCells:Array<Cell>) : Boo
 
 
 //Breth first search for the cloest pebble
-function findPath(x : number, y : number ,  board : Array<Cell>) :Cell{
+function findPath(x : number, y : number ,  board : Array<Cell>, pacman:Pacman) :Cell{
     let nextCells : Array<Cell> = new Array<Cell>();
     let allVisitedCelsls :Array<Cell> = new Array<Cell>();
     let c: Cell = board[toBoardNumber(x,y)]    
     c.setDiscovered(true);
     nextCells.push(c);
     let depth : number = 0;
+    let checkExtraDepth :number = 0
+    
+    if (pacman.getSpeedTurnsLeft() > 0){
+        checkExtraDepth = 1
+    }
     while (nextCells.length > 0){
         let v : Cell = nextCells.shift()// pop == depth first? shift = breth first?
         if(v.getPebbleScore() > 0){ //WE are only finding the clost now
-            return v;
+             if (checkExtraDepth > 0){
+                let up :Cell = getUpCell(v.getX(), v.getY(), board)
+                let down :Cell = getDownCell(v.getX(), v.getY(), board)
+                let left :Cell = getLeftCell(v.getX(), v.getY(), board)
+                let rigth :Cell = getRigthCell(v.getX(), v.getY(), board)
+                if (up != null && up.getPebbleScore() > 0){
+                    return up
+                }
+                if (down != null && down.getPebbleScore() > 0){
+                    return down
+                }
+                if (left != null && left.getPebbleScore() > 0){
+                    return left
+                }
+                if (rigth != null && rigth.getPebbleScore() > 0){
+                    return rigth
+                }
+                return v
+
+            } else {
+                return v
+            }
+            
         }
+
+        
         allVisitedCelsls.push(v)
         let up :Cell = getUpCell(v.getX(), v.getY(), board)
         let down :Cell = getDownCell(v.getX(), v.getY(), board)
         let left :Cell = getLeftCell(v.getX(), v.getY(), board)
         let rigth :Cell = getRigthCell(v.getX(), v.getY(), board)
-        if(rigth != null && rigth.getX() == 7 && rigth.getY() == 7){
-            console.error("7,7 is what: " +rigth.isOtherPacman())
-        }
+        
 
         checkAndEnqueu(left, v, nextCells);
         checkAndEnqueu(up,  v, nextCells);
         checkAndEnqueu(down, v, nextCells);
         checkAndEnqueu(rigth, v, nextCells);
-        
        
         depth++
     }
@@ -220,17 +319,28 @@ function findPath(x : number, y : number ,  board : Array<Cell>) :Cell{
 }
 
 
+function setOtherPacmanRoute(pacman, board){
+    if (!pacman.standOnExplore()){
+        var cell:Cell = board[toBoardNumber(getRandomInt(width) , getRandomInt(height))];
+        while(cell.isWall()){
+            cell = board[toBoardNumber(getRandomInt(width) , getRandomInt(height))];
+        }
+        pacman.setExploreX(cell.getX())
+        pacman.setExploreY(cell.getY())
+    }
+}
 
 
 
 
 
 
+ let myPacmans : Map<number, Pacman> = new Map<number, Pacman>()
 
 // game loop
 while (true) {
 
-    let myPacmans : Array<Pacman> = new Array<Pacman>()
+   
     board.forEach(function(c :Cell) {
          c.setDiscovered(false)
          c.setPebbleScore(0)
@@ -251,8 +361,17 @@ while (true) {
         const abilityCooldown: number = parseInt(inputs[6]); // unused in wood leagues
         let cell:Cell = board[toBoardNumber(xpos,ypos)];
         cell.setOtherPacman(true)
-        if (mine == true){
-            myPacmans.push(new Pacman(pacId, cell))
+        if (mine == true){       
+            if(myPacmans.has(pacId)){
+                var pacman :Pacman = myPacmans.get(pacId)
+                pacman.setCell(cell)
+                pacman.setSpeedColdown(speedTurnsLeft+abilityCooldown)
+                pacman.setSpeedTurnsLeft(speedTurnsLeft)
+
+            }else{
+                myPacmans.set(pacId, new Pacman(pacId, cell))
+                
+            }
             
         }
     }
@@ -280,15 +399,52 @@ while (true) {
 
     
     var output : String = ""
-    for (let pacman of  myPacmans){
+    for (let pacman of  myPacmans.values()){
+        if (!pacman.isSpeedOnColdown()){
+            if (output.length > 0 ){
+                output = output.concat("|")
+            }
+            output = output.concat("SPEED " + pacman.getId())
+            continue
+        }
+        
         var startCell : Cell = pacman.getCell()
-        var cell : Cell = findPath(startCell.getX(), startCell.getY(), board)
+        
+        if (pacman.needNewStrategy()){
+            console.error("I am standing still bad ")
+            setOtherPacmanRoute(pacman, board)
+            if (output.length > 0 ){
+                output = output.concat("|")
+            }
+            output = output.concat("MOVE " + pacman.getId() +" " +pacman.getExploreX() + ' ' + pacman.getExploreY())
+            continue
+        }
+
+        var cell : Cell = findPath(startCell.getX(), startCell.getY(), board, pacman)
         if(cell != null){
+            console.error("Cell found : " + cell.getX() + cell.getY())
+            cell.setPebbleScore(0) //Eaten find
             if (output.length > 0 ){
                 output = output.concat("|")
             }
             output = output.concat("MOVE " + pacman.getId() +" " +cell.getX() + ' ' + cell.getY())
+        } 
+        else {
+            console.error("Did not find pebble")
+            if (output.length > 0 ){
+                output = output.concat("|")
+            }
+            if (!pacman.standOnExplore()){
+               console.error("Found where I wanted to go updating")
+               setOtherPacmanRoute(pacman, board)
+            }
+
+            output = output.concat("MOVE " + pacman.getId() +" " + pacman.getExploreX() + ' ' + pacman.getExploreY())
         }
+        board.forEach(function(c :Cell) {
+            c.setDiscovered(false)
+        })
+     
     }
 
     
@@ -301,3 +457,4 @@ while (true) {
     }  
 
 }
+
