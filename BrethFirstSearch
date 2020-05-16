@@ -12,7 +12,9 @@ class Cell {
         private x : number, 
         private y : number,
         private discovered : Boolean = false,
-        private pacmanId : number = -1
+        private pacmanId : number = -1,
+        private possibleScore : number =  1,
+        private evilPacman : Boolean = false
        
         ) {}
         
@@ -25,8 +27,17 @@ class Cell {
     getPebbleScore() : number {
         return this.pebble
     }
+
     setPebbleScore(pebbleScore:number){
         this.pebble = pebbleScore
+    }
+
+    setPossibleScore(score : number){
+        this.possibleScore = score
+    }
+
+    getPossibleScore(): number {
+        return this.possibleScore
     }
 
     getX() :number{
@@ -57,6 +68,14 @@ class Cell {
 
     getPacmanId() :number {
         return this.pacmanId
+    }
+
+    setIsEvil(evil : Boolean){
+        this.evilPacman = evil 
+    }
+
+    isEvil() :Boolean{
+        return this.evilPacman
     }
 
  
@@ -238,7 +257,11 @@ function getDownCell(x: number, y: number, board : Array<Cell>) : Cell{
 
 function getLeftCell(x: number, y: number, board : Array<Cell>) : Cell{
     let newX =  x -1;
-    if (newX < 0){
+    if(x == 0){
+        // width could be 31, then we have 0 to 30. 
+        newX = width -1
+
+    } else  if (newX < 0){
         return null;
     }
     return board[toBoardNumber(newX,y)] 
@@ -246,7 +269,11 @@ function getLeftCell(x: number, y: number, board : Array<Cell>) : Cell{
 
 function getRigthCell(x: number, y: number, board : Array<Cell>) : Cell{
     let newX =  x + 1;
-    if (newX > width){
+        
+    if(x == width){
+        newX = 0
+    }
+    else if (newX > width){
         return null;
     }
    return board[toBoardNumber(newX,y)] 
@@ -254,8 +281,14 @@ function getRigthCell(x: number, y: number, board : Array<Cell>) : Cell{
 }
 
 function checkAndEnqueu(cell : Cell, prevCell:Cell, nextCells:Array<Cell>, myPacman : Map<number, Pacman>) : Boolean{
-    if (cell != null && cell.isDiscovered() == false &&  !cell.isWall() && myPacman.has(cell.getPacmanId())) {// && !cell.isPacman()){
+    if (cell.getX() == width){
+        console.error("is discovered : X " + cell.getX() + " Y : " + cell.getY() + " and nos is :" +cell.isDiscovered())
+    }
+
+    if (cell != null && cell.isDiscovered() == false &&  !cell.isWall() && !myPacman.has(cell.getPacmanId())) {// && !cell.isPacman()){
+        
         cell.setDiscovered(true);
+        //console.error("Set discoved : X " + cell.getX() + " Y : " + cell.getY() + " and nos is :" +cell.isDiscovered())
         nextCells.push(cell)
         return true;
     }
@@ -277,10 +310,11 @@ function findPath(x : number, y : number ,  board : Array<Cell>, pacman:Pacman, 
     if (pacman.getSpeedTurnsLeft() > 0){
         checkExtraDepth = 1
     }
+    console.error("nextCells length at start  : " + nextCells.length)
     while (nextCells.length > 0){
         let v : Cell = nextCells.shift()// pop == depth first? shift = breth first?
 
-        if (evilPacman.has(v.getPacmanId())){
+        if (v.isEvil() && evilPacman.has(v.getPacmanId())){
             let evil : Pacman = evilPacman.get(v.getPacmanId())
             if(pacman.getType() == PacmanType.Paper && evil.getType() == PacmanType.Rock)
             {
@@ -295,6 +329,7 @@ function findPath(x : number, y : number ,  board : Array<Cell>, pacman:Pacman, 
                 return v
             }
             else {
+                console.error("Doing continue do to evil pacman  : " +c.getPacmanId())
                 continue
             }
 
@@ -309,6 +344,7 @@ function findPath(x : number, y : number ,  board : Array<Cell>, pacman:Pacman, 
                 let left :Cell = getLeftCell(v.getX(), v.getY(), board)
                 let rigth :Cell = getRigthCell(v.getX(), v.getY(), board)
                 if (up != null && up.getPebbleScore() > 0){
+                    up.setDiscovered(true)
                     return up
                 }
                 if (down != null && down.getPebbleScore() > 0){
@@ -327,18 +363,22 @@ function findPath(x : number, y : number ,  board : Array<Cell>, pacman:Pacman, 
             }            
         }
 
+        if(v.getPossibleScore() >  0){
+            return v
+        }
+
         
         allVisitedCelsls.push(v)
-        let up :Cell = getUpCell(v.getX(), v.getY(), board, myPacmans)
-        let down :Cell = getDownCell(v.getX(), v.getY(), board, myPacmans)
-        let left :Cell = getLeftCell(v.getX(), v.getY(), board, myPacmans)
-        let rigth :Cell = getRigthCell(v.getX(), v.getY(), board, myPacmans)
+        let up :Cell = getUpCell(v.getX(), v.getY(), board)
+        let down :Cell = getDownCell(v.getX(), v.getY(), board)
+        let left :Cell = getLeftCell(v.getX(), v.getY(), board)
+        let rigth :Cell = getRigthCell(v.getX(), v.getY(), board)
         
-
-        checkAndEnqueu(left, v, nextCells);
-        checkAndEnqueu(up,  v, nextCells);
-        checkAndEnqueu(down, v, nextCells);
-        checkAndEnqueu(rigth, v, nextCells);
+        
+        checkAndEnqueu(left, v, nextCells,myPacmans);
+        checkAndEnqueu(up,  v, nextCells, myPacmans);
+        checkAndEnqueu(down, v, nextCells, myPacmans);
+        checkAndEnqueu(rigth, v, nextCells, myPacmans);
        
         depth++
     }
@@ -360,7 +400,7 @@ function findPath(x : number, y : number ,  board : Array<Cell>, pacman:Pacman, 
 }
 
 
-function setOtherPacmanRoute(pacman, board){
+function setOtherPacmanRoute(pacman:Pacman, board:Array<Cell>){
     if (!pacman.standOnExplore()){
         var cell:Cell = board[toBoardNumber(getRandomInt(width) , getRandomInt(height))];
         while(cell.isWall()){
@@ -369,6 +409,59 @@ function setOtherPacmanRoute(pacman, board){
         pacman.setExploreX(cell.getX())
         pacman.setExploreY(cell.getY())
     }
+}
+
+function updateBoardFromPacmanView(pacman:Pacman, board:Array<Cell>){
+    let v : Cell = pacman.getCell()
+    v.setPossibleScore(0)
+    let up :Cell = getUpCell(pacman.getCell().getX(), pacman.getCell().getY(), board)
+    while (up != null &&!up.isWall()){
+        if (up.getPebbleScore() == 0){
+            up.setPossibleScore(0)
+        }
+        up = getUpCell(up.getX(), up.getY(), board)
+    }
+
+    
+    let down :Cell = getDownCell(v.getX(), v.getY(), board)
+    while (down != null &&!down.isWall()){
+        if (down.getPebbleScore() == 0){
+            down.setPossibleScore(0)
+        }
+        down = getDownCell(down.getX(), down.getY(), board)
+    }
+
+
+    let left :Cell = getLeftCell(v.getX(), v.getY(), board)
+    while (left != null &&!left.isWall()){
+        if(left.getX() == 2 && left.getY() == 7){
+            console.error("2,7 has score: " + left.getPebbleScore())
+        }
+        if (left.getPebbleScore() == 0){
+            left.setPossibleScore(0)
+        }
+        left = getLeftCell(left.getX(), left.getY(), board)
+    }
+
+    
+    let rigth :Cell = getRigthCell(v.getX(), v.getY(), board)
+    while (rigth != null && !rigth.isWall()){
+        if (rigth.getPebbleScore() == 0){
+            rigth.setPossibleScore(0)
+        }
+        rigth = getRigthCell(rigth.getX(), rigth.getY(), board)
+    }
+}
+
+function test(board:Array<Cell>){
+      let c : Cell = board[toBoardNumber(1,1)] 
+      console.error("test now be one or zero " + c.getPossibleScore())
+      c.setPossibleScore(0)
+}
+
+function test2(board:Array<Cell>){
+      let c : Cell = board[toBoardNumber(1,1)] 
+      console.error("Should now be zeor " + c.getPossibleScore())
 }
 
 
@@ -386,8 +479,9 @@ while (true) {
    
     board.forEach(function(c :Cell) {
          c.setDiscovered(false)
-         c.setPebbleScore(0)
          c.setPacmanId(-1)
+         c.setPebbleScore(0)
+         c.setIsEvil(false)
     })
     var inputs: string[] = readline().split(' ');
     const myScore: number = parseInt(inputs[0]);
@@ -415,15 +509,17 @@ while (true) {
 
             }else{
                 var p :Pacman = new Pacman(pacId, cell)
-
+                
                 p.setType(PacmanType[typeId])
                 myPacmans.set(pacId, p)
             }
+            cell.setIsEvil(false)
         } else{
             var p :Pacman = new Pacman(pacId, cell)
-
+            console.error("Evil pacman id: " + pacId)
             p.setType(PacmanType[typeId])
             evilPacmans.set(pacId, p)
+            cell.setIsEvil(true)
         }
     }
     const visiblePelletCount: number = parseInt(readline()); // all pellets in sight
@@ -443,14 +539,22 @@ while (true) {
             console.error("pebble score " +cell.getPebbleScore())
             console.error("pebble score red "+ value)
         }
-
     }
+
+    myPacmans.forEach(( pacman:Pacman, id:number) => {
+        updateBoardFromPacmanView(pacman, board)
+        let v : Cell = pacman.getCell()
+        console.error("Pacman standing on possible score:" + v.getPossibleScore())
+    })
+
+   
     // Write an action using console.log()
     // To debug: console.error('Debug messages...');
 
-    
+    var foundCell : Array<Cell>  = new Array<Cell>() 
     var output : String = ""
     for (let pacman of  myPacmans.values()){
+        var cell37 : Cell = board[toBoardNumber(3,7)]
         if (!pacman.isSpeedOnColdown()){
             if (output.length > 0 ){
                 output = output.concat("|")
@@ -472,9 +576,8 @@ while (true) {
         }
 
         var cell : Cell = findPath(startCell.getX(), startCell.getY(), board, pacman, myPacmans, evilPacmans)
+        
         if(cell != null){
-            console.error("Cell found : " + cell.getX() + cell.getY())
-            cell.setPebbleScore(0) //Eaten find
             if (output.length > 0 ){
                 output = output.concat("|")
             }
@@ -492,11 +595,17 @@ while (true) {
 
             output = output.concat("MOVE " + pacman.getId() +" " + pacman.getExploreX() + ' ' + pacman.getExploreY())
         }
+        //Allow them to search where another pacman have been
         board.forEach(function(c :Cell) {
             c.setDiscovered(false)
         })
-     
+        //But not same as other pacman found
+        foundCell.forEach((cell) => {
+            cell.setDiscovered(true)
+        })
+        
     }
+
 
     
     if (output != null){
