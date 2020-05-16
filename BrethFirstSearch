@@ -12,7 +12,7 @@ class Cell {
         private x : number, 
         private y : number,
         private discovered : Boolean = false,
-        private otherPacman : Boolean = false
+        private pacmanId : number = -1
        
         ) {}
         
@@ -47,16 +47,28 @@ class Cell {
         this.discovered = discovered
     }
 
-    isOtherPacman() :Boolean{
-        return this.otherPacman
+    isPacman() :Boolean{
+        return this.pacmanId != -1
     }
     
-    setOtherPacman(pacman : Boolean){
-        this.otherPacman = pacman
+    setPacmanId(pacmanId : number){
+        this.pacmanId = pacmanId
+    }
+
+    getPacmanId() :number {
+        return this.pacmanId
     }
 
  
     
+}
+
+
+enum PacmanType {
+    Rock = "ROCK",
+    Paper = "PAPER",
+    Scissors = "SCISSORS",
+    None = ""
 }
 
 
@@ -65,6 +77,7 @@ class Pacman{
         private id:number,
         private cell: Cell,
         private oldCell : Cell = null,
+        private type : PacmanType = PacmanType.None,
         private exploreX : number = -1,
         private exploreY : number = -1,
         private failedMove : number = 0,
@@ -75,6 +88,14 @@ class Pacman{
     getId() : number{
         return this.id
     }
+
+    getType():PacmanType{
+        return this.type
+    }
+    setType(type :PacmanType){
+        this.type = type
+    }
+
     getCell():Cell{
         return this.cell
     }
@@ -85,11 +106,9 @@ class Pacman{
         this.oldCell = this.cell
         this.cell = cell;
         if(this.oldCell == cell){
-            console.error("did not move")
             //did not move
             this.failedMove += 1
         } else{
-            console.error("I moved move")
             this.failedMove = 0
         }
     }
@@ -234,8 +253,8 @@ function getRigthCell(x: number, y: number, board : Array<Cell>) : Cell{
    
 }
 
-function checkAndEnqueu(cell : Cell, prevCell:Cell, nextCells:Array<Cell>) : Boolean{
-    if (cell != null && cell.isDiscovered() == false &&  !cell.isWall() && !cell.isOtherPacman()){
+function checkAndEnqueu(cell : Cell, prevCell:Cell, nextCells:Array<Cell>, myPacman : Map<number, Pacman>) : Boolean{
+    if (cell != null && cell.isDiscovered() == false &&  !cell.isWall() && myPacman.has(cell.getPacmanId())) {// && !cell.isPacman()){
         cell.setDiscovered(true);
         nextCells.push(cell)
         return true;
@@ -246,7 +265,7 @@ function checkAndEnqueu(cell : Cell, prevCell:Cell, nextCells:Array<Cell>) : Boo
 
 
 //Breth first search for the cloest pebble
-function findPath(x : number, y : number ,  board : Array<Cell>, pacman:Pacman) :Cell{
+function findPath(x : number, y : number ,  board : Array<Cell>, pacman:Pacman, myPacman : Map<number, Pacman>, evilPacman : Map<number, Pacman>) :Cell{
     let nextCells : Array<Cell> = new Array<Cell>();
     let allVisitedCelsls :Array<Cell> = new Array<Cell>();
     let c: Cell = board[toBoardNumber(x,y)]    
@@ -260,6 +279,29 @@ function findPath(x : number, y : number ,  board : Array<Cell>, pacman:Pacman) 
     }
     while (nextCells.length > 0){
         let v : Cell = nextCells.shift()// pop == depth first? shift = breth first?
+
+        if (evilPacman.has(v.getPacmanId())){
+            let evil : Pacman = evilPacman.get(v.getPacmanId())
+            if(pacman.getType() == PacmanType.Paper && evil.getType() == PacmanType.Rock)
+            {
+                return v
+            }
+            else if(pacman.getType() == PacmanType.Rock && evil.getType() == PacmanType.Scissors)
+            {
+                return v
+            }
+            else if(pacman.getType() == PacmanType.Scissors && evil.getType() == PacmanType.Paper)
+            {
+                return v
+            }
+            else {
+                continue
+            }
+
+
+        }
+
+
         if(v.getPebbleScore() > 0){ //WE are only finding the clost now
              if (checkExtraDepth > 0){
                 let up :Cell = getUpCell(v.getX(), v.getY(), board)
@@ -282,16 +324,15 @@ function findPath(x : number, y : number ,  board : Array<Cell>, pacman:Pacman) 
 
             } else {
                 return v
-            }
-            
+            }            
         }
 
         
         allVisitedCelsls.push(v)
-        let up :Cell = getUpCell(v.getX(), v.getY(), board)
-        let down :Cell = getDownCell(v.getX(), v.getY(), board)
-        let left :Cell = getLeftCell(v.getX(), v.getY(), board)
-        let rigth :Cell = getRigthCell(v.getX(), v.getY(), board)
+        let up :Cell = getUpCell(v.getX(), v.getY(), board, myPacmans)
+        let down :Cell = getDownCell(v.getX(), v.getY(), board, myPacmans)
+        let left :Cell = getLeftCell(v.getX(), v.getY(), board, myPacmans)
+        let rigth :Cell = getRigthCell(v.getX(), v.getY(), board, myPacmans)
         
 
         checkAndEnqueu(left, v, nextCells);
@@ -336,15 +377,17 @@ function setOtherPacmanRoute(pacman, board){
 
 
  let myPacmans : Map<number, Pacman> = new Map<number, Pacman>()
+ 
 
 // game loop
 while (true) {
 
+    let evilPacmans : Map<number, Pacman> = new Map<number, Pacman>()
    
     board.forEach(function(c :Cell) {
          c.setDiscovered(false)
          c.setPebbleScore(0)
-         c.setOtherPacman(false)
+         c.setPacmanId(-1)
     })
     var inputs: string[] = readline().split(' ');
     const myScore: number = parseInt(inputs[0]);
@@ -360,19 +403,27 @@ while (true) {
         const speedTurnsLeft: number = parseInt(inputs[5]); // unused in wood leagues
         const abilityCooldown: number = parseInt(inputs[6]); // unused in wood leagues
         let cell:Cell = board[toBoardNumber(xpos,ypos)];
-        cell.setOtherPacman(true)
+        cell.setPacmanId(pacId)
+        
         if (mine == true){       
             if(myPacmans.has(pacId)){
                 var pacman :Pacman = myPacmans.get(pacId)
                 pacman.setCell(cell)
                 pacman.setSpeedColdown(speedTurnsLeft+abilityCooldown)
                 pacman.setSpeedTurnsLeft(speedTurnsLeft)
+                pacman.setType(PacmanType[typeId])
 
             }else{
-                myPacmans.set(pacId, new Pacman(pacId, cell))
-                
+                var p :Pacman = new Pacman(pacId, cell)
+
+                p.setType(PacmanType[typeId])
+                myPacmans.set(pacId, p)
             }
-            
+        } else{
+            var p :Pacman = new Pacman(pacId, cell)
+
+            p.setType(PacmanType[typeId])
+            evilPacmans.set(pacId, p)
         }
     }
     const visiblePelletCount: number = parseInt(readline()); // all pellets in sight
@@ -420,7 +471,7 @@ while (true) {
             continue
         }
 
-        var cell : Cell = findPath(startCell.getX(), startCell.getY(), board, pacman)
+        var cell : Cell = findPath(startCell.getX(), startCell.getY(), board, pacman, myPacmans, evilPacmans)
         if(cell != null){
             console.error("Cell found : " + cell.getX() + cell.getY())
             cell.setPebbleScore(0) //Eaten find
@@ -457,4 +508,3 @@ while (true) {
     }  
 
 }
-
