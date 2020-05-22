@@ -96,9 +96,10 @@ class Cell {
 
 
 enum PacmanType {
-    Rock = "ROCK",
-    Paper = "PAPER",
-    Scissors = "SCISSORS",
+    ROCK = "ROCK",
+    PAPER = "PAPER",
+    SCISSORS = "SCISSORS",
+    Dead = "DEAD",
     None = ""
 }
 
@@ -332,16 +333,16 @@ function checkIfCanEatEvilPacman(cell : Cell, myPacman:Pacman, evilPacman:Map<nu
    
     console.error("Found evil pacman" )
     let evil : Pacman = evilPacman.get(cell.getPacmanId())
-    if(myPacman.getType() == PacmanType.Paper && evil.getType() == PacmanType.Rock && evil.getAbilityCooldown() > 0 )
+    if(myPacman.getType() == PacmanType.PAPER && evil.getType() == PacmanType.ROCK && evil.getAbilityCooldown() > 0 )
     {
         return true
     }
-    else if(myPacman.getType() == PacmanType.Rock && evil.getType() == PacmanType.Scissors && evil.getAbilityCooldown() > 0)
+    else if(myPacman.getType() == PacmanType.ROCK && evil.getType() == PacmanType.SCISSORS && evil.getAbilityCooldown() > 0)
     {
         console.error("Eat")
         return true
     }
-    else if(myPacman.getType() == PacmanType.Scissors && evil.getType() == PacmanType.Paper && evil.getAbilityCooldown() > 0)
+    else if(myPacman.getType() == PacmanType.SCISSORS && evil.getType() == PacmanType.PAPER && evil.getAbilityCooldown() > 0)
     {
         return true
     }
@@ -358,7 +359,7 @@ function findHighValuePebble(x : number, y : number ,  board : Array<Cell>, pacm
     let c: Cell = board[toBoardNumber(x,y)]    
     c.setDiscovered(true);
     nextCells.push(c);
-    let serchLeft = 1 +4 +8 + 12 +16//4 depth
+    let serchLeft = 1 +4 +8 + 12 +16 +20 + 24 // 6 depth
 
     while (nextCells.length > 0 && serchLeft > 0){
         serchLeft -=1 
@@ -416,9 +417,11 @@ function findPath(x : number, y : number ,  board : Array<Cell>, pacman:Pacman, 
 
         if (v.isEvil() && evilPacman.has(v.getPacmanId())){
             if( checkIfCanEatEvilPacman(v,pacman, evilPacman)){
+                console.error("eating evil pacman id " +v.getPacmanId() )
                 returnCell.push(v)
                 return returnCell
             } else{
+                console.error("doing pacman is still evil"  +v.getPacmanId() )
                 continue
             }
         }
@@ -656,14 +659,23 @@ while (true) {
         cell.setPacmanId(pacId)
         
         if (mine == true){       
+            console.error("set pacman abilityCooldown " + abilityCooldown + " is " + pacId)
             if(myPacmans.has(pacId)){
                 
                 let pacman :Pacman = myPacmans.get(pacId)
                 pacman.setCell(cell)
-                pacman.setDead(false)
+                
                 pacman.setSpeedColdown(speedTurnsLeft+abilityCooldown)
                 pacman.setSpeedTurnsLeft(speedTurnsLeft)
                 pacman.setType(PacmanType[typeId])
+                
+                if(pacman.getType() == PacmanType.Dead){
+                    pacman.setDead(true)
+                    console.error("set pacman todead")
+                } else {
+                    pacman.setDead(false)
+                }
+                
 
             }else{
                 let p :Pacman = new Pacman(pacId, cell)
@@ -678,7 +690,10 @@ while (true) {
             p.setType(PacmanType[typeId])
             evilPacmans.set(pacId, p)
             p.setAbilityCooldown(abilityCooldown)
-            cell.setIsEvil(true)
+            if(p.getType() != PacmanType.Dead){
+                cell.setIsEvil(true)
+            }
+            
         }
     }
     const visiblePelletCount: number = parseInt(readline()); // all pellets in sight
@@ -722,20 +737,11 @@ console.error("My pacman has siz: " + myPacmans.size)
     let skipPacman : Array<number> = new Array<number>()
 
     for (let pacman of myPacmans.values()){
-        console.error("pacid : " + pacman.getId())
+        
         if (pacman.isDead()){
             continue
         }
-        let startCell : Cell = pacman.getCell()
-        let cell :Cell = findHighValuePebble(startCell.getX(), startCell.getY(), board, pacman, myPacmans, evilPacmans)
-        if (cell != null){
-             if (output.length > 0 ){
-                output = output.concat("|")
-            }
-            output = output.concat("MOVE " + pacman.getId() +" " +cell.getX() + ' ' + cell.getY())
-            skipPacman.push(pacman.getId())
-            foundCell.push(cell)
-        }
+      
     }
 
     //Allow them to search where another pacman have been
@@ -774,28 +780,49 @@ console.error("My pacman has siz: " + myPacmans.size)
             output = output.concat("MOVE " + pacman.getId() +" " +pacman.getExploreX() + ' ' + pacman.getExploreY())
             continue
         }
-
-        let cells : Array<Cell> = findPath(startCell.getX(), startCell.getY(), board, pacman, myPacmans, evilPacmans)
         
-        if(cells != null){
-           
+        let higCell :Cell = findHighValuePebble(startCell.getX(), startCell.getY(), board, pacman, myPacmans, evilPacmans)
+        if (higCell != null){
             if (output.length > 0 ){
                 output = output.concat("|")
             }
-            foundCell.push(...cells)
-            let cell :Cell =cells[cells.length-1]
-            output = output.concat("MOVE " + pacman.getId() +" " +cell.getX() + ' ' + cell.getY())
-        } 
-        else {
-            console.error("Did not find pebble")
-            if (output.length > 0 ){
-                output = output.concat("|")
-            }
-            if (!pacman.standOnExplore()){
-                setOtherPacmanRoute(pacman, board)
-            }
+            output = output.concat("MOVE " + pacman.getId() +" " +higCell.getX() + ' ' + higCell.getY())
+            skipPacman.push(pacman.getId())
+            foundCell.push(higCell)
+            console.error("found high score peblble for pacid : " + pacman.getId())
+        } else{
+            //Have to reset the board if no high value was found
+            board.forEach(function(c :Cell) {
+                c.setDiscovered(false)
+            })
+            //But not same as other pacman found
+            foundCell.forEach((cell) => {
+                cell.setDiscovered(true)
+            })
+        
 
-            output = output.concat("MOVE " + pacman.getId() +" " + pacman.getExploreX() + ' ' + pacman.getExploreY())
+            let cells : Array<Cell> = findPath(startCell.getX(), startCell.getY(), board, pacman, myPacmans, evilPacmans)
+            
+            if(cells != null){
+            
+                if (output.length > 0 ){
+                    output = output.concat("|")
+                }
+                foundCell.push(...cells)
+                let cell :Cell =cells[cells.length-1]
+                output = output.concat("MOVE " + pacman.getId() +" " +cell.getX() + ' ' + cell.getY())
+            } 
+            else {
+                console.error("Did not find pebble")
+                if (output.length > 0 ){
+                    output = output.concat("|")
+                }
+                if (!pacman.standOnExplore()){
+                    setOtherPacmanRoute(pacman, board)
+                }
+
+                output = output.concat("MOVE " + pacman.getId() +" " + pacman.getExploreX() + ' ' + pacman.getExploreY())
+            }
         }
         //Allow them to search where another pacman have been
         board.forEach(function(c :Cell) {
